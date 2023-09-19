@@ -3,6 +3,7 @@ const fs = require("fs");
 const path = require("path");
 const { google } = require("googleapis");
 const { sheetId, range } = require("./secret/googleSheetConfig.js");
+const { init } = require("./api/firestoreApi.js");
 
 async function getSpreadsheetValues() {
   const auth = new google.auth.GoogleAuth({
@@ -58,6 +59,7 @@ function savePhoto(photoBuffers) {
     }
   });
 }
+init();
 const imageDementions = [500, 1500, 2500, 3500];
 const main = async () => {
   const spreadsheetSkus = await getSpreadsheetValues();
