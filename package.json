@@ -1,0 +1,16 @@
+{
+  "name": "fat-flicks-crawler",
+  "version": "1.0.0",
+  "description": "Read Skus from external source and load db",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Austin Taylor",
+  "license": "ISC",
+  "dependencies": {
+    "axios": "^1.5.0",
+    "googleapis": "^126.0.1"
+  }
+}
