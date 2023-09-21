@@ -1,26 +1,11 @@
+require("dotenv").config();
 const Api = require("./api/api.js");
-const fs = require("fs");
-const path = require("path");
-const { google } = require("googleapis");
-const { sheetId, range } = require("./secret/googleSheetConfig.js");
-const { init } = require("./api/firestoreApi.js");
+const {
+  firebaseInit,
+  UploadImage,
+  getSpreadsheetValues,
+} = require("./api/firestoreApi.js");
 
-async function getSpreadsheetValues() {
-  const auth = new google.auth.GoogleAuth({
-    keyFile: "./secret/keys.json",
-    scopes: "https://www.googleapis.com/auth/spreadsheets",
-  });
-  const clientAuthObject = await auth.getClient();
-  const googleSheetsInstance = google.sheets({
-    version: "v4",
-    auth: clientAuthObject,
-  });
-  const readData = await googleSheetsInstance.spreadsheets.values.get({
-    spreadsheetId: sheetId,
-    range: range,
-  });
-  return readData.data.values;
-}
 function formatSpreadsheetValues(spreadsheetSkus) {
   const strippedInput = [];
   spreadsheetSkus.forEach((sku, index) => {
@@ -34,8 +19,11 @@ function formatSpreadsheetValues(spreadsheetSkus) {
   return strippedInput;
 }
 function savePhoto(photoBuffers) {
-  photoBuffers.forEach((photoBuffer) => {
-    // Save File to Local Directory
+  photoBuffers.forEach(async (photoBuffer) => {
+    /*
+    // Save File to Local Images Directory
+    const fs = require("fs");
+    const path = require("path");
     const cwd = process.cwd();
     const imageDirectory = path.join(cwd, "images");
     if (!fs.existsSync(imageDirectory)) {
@@ -57,30 +45,35 @@ function savePhoto(photoBuffers) {
     if (!fs.existsSync(filepath)) {
       fs.writeFileSync(filepath, photoBuffer.buffer);
     }
+    */
+    // Upload File to Firebase Storage & Save Document to Firestore
+    await UploadImage({
+      sku: photoBuffer.sku,
+      width: photoBuffer.width,
+      angle: photoBuffer.angle,
+      buffer: photoBuffer.buffer,
+    });
   });
 }
-init();
+firebaseInit();
 const imageDementions = [500, 1500, 2500, 3500];
 const main = async () => {
-  const spreadsheetSkus = await getSpreadsheetValues();
-  const strippedSkus = formatSpreadsheetValues(spreadsheetSkus);
+  const skuArray = await getSpreadsheetValues();
   imageDementions.forEach(async (width) => {
     let noImageResponse = await Api.FetchNoResponseImage({ width });
     noImageResponse = new Uint8Array(noImageResponse).toString();
-    strippedSkus.forEach(async (sku) => {
+    skuArray.forEach(async (sku) => {
       const photoBuffers = await Api.FetchImages({
         sku,
         width,
         noImageResponse,
       });
-      savePhoto(photoBuffers);
+      await savePhoto(photoBuffers);
       console.log(
-        console.log(`Saved Sku[ ${sku} ]: ${photoBuffers.length} images\n`)
+        `Saved Sku[ ${sku}_${width}x${width} ]: ${photoBuffers.length} images\n`
       );
     });
-    console.log(`Finished ${width}x${width} images\n`);
   });
-  console.log(`Finished all images\n`);
 };
 
 main();
