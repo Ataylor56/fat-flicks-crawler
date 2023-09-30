@@ -33,12 +33,7 @@ exports.SaveImage = async function SaveImage({
   await docRef.set({ buffer });
 };
 
-exports.UploadImage = async function UploadImage({
-  sku,
-  width,
-  angle,
-  buffer,
-}) {
+async function UploadImage({ sku, width, angle, buffer }) {
   const filename = `${sku}_${angle}.png`;
   const filepath = `${sku}/${width}x${width}/${filename}`;
   const file = bucket.file(filepath);
@@ -48,8 +43,7 @@ exports.UploadImage = async function UploadImage({
       contentType: "image/png",
     },
   });
-  const metadata = await file.getMetadata();
-  const imageRef = metadata[0].mediaLink;
+  const imageRef = file.publicUrl();
   const documentName = `${sku}_${width}x${width}_${angle}`;
   const docRef = await db.doc(documentName).set({
     sku,
@@ -57,10 +51,81 @@ exports.UploadImage = async function UploadImage({
     angle,
     imageRef,
   });
-  return;
+  return imageRef;
+}
+
+exports.SavePhoto = async function SavePhoto(photoBuffers) {
+  const refArray = [];
+  for (const photoBuffer of photoBuffers) {
+    /*
+    // Save File to Local Images Directory
+    const fs = require("fs");
+    const path = require("path");
+    const cwd = process.cwd();
+    const imageDirectory = path.join(cwd, "images");
+    if (!fs.existsSync(imageDirectory)) {
+      fs.mkdirSync(imageDirectory);
+    }
+    const skuDirectoryName = path.join(imageDirectory, photoBuffer.sku);
+    if (!fs.existsSync(skuDirectoryName)) {
+      fs.mkdirSync(skuDirectoryName);
+    }
+    const resolutionDirectory = path.join(
+      skuDirectoryName,
+      `${photoBuffer.width}x${photoBuffer.width}`
+    );
+    if (!fs.existsSync(resolutionDirectory)) {
+      fs.mkdirSync(resolutionDirectory);
+    }
+    const filename = `${photoBuffer.sku}_${photoBuffer.angle}.png`;
+    const filepath = path.join(resolutionDirectory, filename);
+    if (!fs.existsSync(filepath)) {
+      fs.writeFileSync(filepath, photoBuffer.buffer);
+    }
+    */
+    // Upload File to Firebase Storage & Save Document to Firestore
+    const imageRef = await UploadImage({
+      sku: photoBuffer.sku,
+      width: photoBuffer.width,
+      angle: photoBuffer.angle,
+      buffer: photoBuffer.buffer,
+    });
+    refArray.push(imageRef);
+  }
+  return refArray;
 };
 
-exports.getSpreadsheetValues = async function getSpreadsheetValues() {
+exports.updateSpreadsheetValues = async function updateSpreadsheetValues({
+  values,
+  updateRange,
+}) {
+  const auth = new google.auth.GoogleAuth({
+    keyFile: "./secret/keys.json",
+    scopes: "https://www.googleapis.com/auth/spreadsheets",
+  });
+  const clientAuthObject = await auth.getClient();
+  const googleSheetsInstance = google.sheets({
+    version: "v4",
+    auth: clientAuthObject,
+  });
+  await googleSheetsInstance.spreadsheets.values
+    .clear({
+      spreadsheetId: process.env.SHEET_ID,
+      range: updateRange,
+    })
+    .then(async () => {
+      await googleSheetsInstance.spreadsheets.values.update({
+        spreadsheetId: process.env.SHEET_ID,
+        range: updateRange,
+        valueInputOption: "USER_ENTERED",
+        resource: {
+          values,
+        },
+      });
+    });
+};
+
+exports.getSpreadsheetValues = async function getSpreadsheetValues(readRange) {
   const auth = new google.auth.GoogleAuth({
     keyFile: "./secret/keys.json",
     scopes: "https://www.googleapis.com/auth/spreadsheets",
@@ -72,20 +137,24 @@ exports.getSpreadsheetValues = async function getSpreadsheetValues() {
   });
   const readData = await googleSheetsInstance.spreadsheets.values.get({
     spreadsheetId: process.env.SHEET_ID,
-    range: process.env.RANGE,
+    range: readRange,
   });
-  return formatSpreadsheetValues(readData.data.values);
+  return readData.data.values;
 };
 
-function formatSpreadsheetValues(spreadsheetSkus) {
+exports.formatSpreadsheetValues = function formatSpreadsheetValues(
+  spreadsheetSkus
+) {
   const strippedInput = [];
   spreadsheetSkus.forEach((sku, index) => {
     if (
       spreadsheetSkus[index][0]?.trim() !== undefined &&
       spreadsheetSkus[index][0]?.trim() !== null
     ) {
-      strippedInput.push(spreadsheetSkus[index][0]);
+      const skuArray = spreadsheetSkus[index];
+      skuArray[0] = spreadsheetSkus[index][0].replace("-", "_");
+      strippedInput.push(skuArray);
     }
   });
   return strippedInput;
-}
+};
