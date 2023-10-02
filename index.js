@@ -93,13 +93,17 @@ if (isDev) {
   main();
 } else {
   nodeCron
-    .schedule("*/5 7-19 * * 1-5", async () => {
+    .schedule("*/5 7-19 * * 1-6", async () => {
       console.log(
-        `Starting Nike Image Scrape: ${new Date().toLocaleString("en-US")}`
+        `[${
+          process.env.NODE_ENV
+        }] Starting Nike Image Scrape: ${new Date().toLocaleString("en-US")}`
       );
       await main();
       console.log(
-        `Finished Nike Image Scrape: ${new Date().toLocaleString("en-US")}`
+        `[${
+          process.env.NODE_ENV
+        }] Finished Nike Image Scrape: ${new Date().toLocaleString("en-US")}`
       );
     })
     .start();
